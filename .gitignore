@@ -1,0 +1,15 @@
+# LuCI upstream reference (not part of this package)
+luci/
+
+# Build artifacts
+node_modules/
+dist/
+*.ipk
+*.apk
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Temporary files
+/tmp/
