@@ -1,0 +1,28 @@
+# File: .github/workflows/template-sync.yml
+
+on:
+  schedule:
+  - cron: "0 0 1 * *"
+  workflow_dispatch:
+jobs:
+  repo-sync:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+
+    steps:
+      # To use this repository's private action, you must check out the repository
+      - name: Checkout
+        uses: actions/checkout@v4
+        # https://github.com/actions/checkout#usage
+        # uncomment if you use submodules within the repository
+        # with:
+        #   submodules: true
+
+      - name: actions-template-sync
+        uses: AndreasAugustin/actions-template-sync@v2
+        with:
+          source_repo_path: tokisaki-galaxy/openwrt-template
+          upstream_branch: master # defaults to main
+          pr_labels: <label1>,<label2>[,...] # defaults to template_sync
