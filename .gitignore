@@ -1,5 +1,5 @@
 # LuCI upstream reference (not part of this package)
-luci/
+/luci/
 
 # Build artifacts
 node_modules/

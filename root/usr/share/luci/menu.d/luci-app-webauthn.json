@@ -1,0 +1,13 @@
+{
+	"admin/system/admin/webauthn": {
+		"title": "Passkeys",
+		"order": 7,
+		"action": {
+			"type": "view",
+			"path": "system/webauthn"
+		},
+		"depends": {
+			"acl": [ "luci-app-webauthn" ]
+		}
+	}
+}
