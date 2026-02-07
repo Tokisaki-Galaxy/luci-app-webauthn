@@ -54,14 +54,14 @@ var callManageUpdate = rpc.declare({
 var callRegisterBegin = rpc.declare({
 	object: 'luci.webauthn',
 	method: 'register_begin',
-	params: [ 'username', 'userVerification' ],
+	params: [ 'username', 'userVerification', 'origin' ],
 	expect: { }
 });
 
 var callRegisterFinish = rpc.declare({
 	object: 'luci.webauthn',
 	method: 'register_finish',
-	params: [ 'challengeId', 'deviceName', 'id', 'type', 'response' ],
+	params: [ 'challengeId', 'deviceName', 'id', 'type', 'response', 'origin' ],
 	expect: { }
 });
 
@@ -215,7 +215,7 @@ return view.extend({
 			'My Device');
 		if (deviceName === null) return;
 
-		return callRegisterBegin('root', 'preferred')
+		return callRegisterBegin('root', 'preferred', window.location.origin)
 			.then(function(data) {
 				if (data.error) throw data;
 
@@ -244,7 +244,8 @@ return view.extend({
 					{
 						clientDataJSON: utils.encode(cred.response.clientDataJSON),
 						attestationObject: utils.encode(cred.response.attestationObject)
-					}
+					},
+					window.location.origin
 				);
 			})
 			.then(function(data) {
