@@ -12,7 +12,7 @@
 import { popen, access } from 'fs';
 import { cursor } from 'uci';
 
-const HELPER_BIN = '/usr/bin/webauthn-helper';
+const HELPER_BIN = '/usr/libexec/webauthn-helper';
 
 function get_origin() {
 	const uci = cursor();

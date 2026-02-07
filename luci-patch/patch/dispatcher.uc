@@ -562,22 +562,26 @@ function load_auth_plugins() {
 
 function get_auth_challenge(user) {
 	let plugins = load_auth_plugins();
-	let extra_html = [];
+	let all_fields = [];
+	let all_html_parts = [];
+	let all_messages = [];
+	let first_plugin = null;
 
 	for (let plugin in plugins) {
 		try {
 			let result = plugin.check(http, user);
-			if (result?.html)
-				push(extra_html, result.html);
-
 			if (result?.required) {
-				return {
-					pending: true,
-					plugin: plugin,
-					fields: result.fields ?? [],
-					message: result.message ?? '',
-					html: join('', extra_html)
-				};
+				if (!first_plugin)
+					first_plugin = plugin;
+
+				if (result.fields)
+					push(all_fields, ...result.fields);
+
+				if (result.html)
+					push(all_html_parts, result.html);
+
+				if (result.message)
+					push(all_messages, result.message);
 			}
 		}
 		catch (e) {
@@ -586,10 +590,17 @@ function get_auth_challenge(user) {
 		}
 	}
 
-	return {
-		pending: false,
-		html: length(extra_html) ? join('', extra_html) : null
-	};
+	if (first_plugin) {
+		return {
+			pending: true,
+			plugin: first_plugin,
+			fields: all_fields,
+			message: join(' ', all_messages),
+			html: join('', all_html_parts)
+		};
+	}
+
+	return { pending: false };
 }
 
 function verify_auth_challenge(user) {
