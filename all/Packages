@@ -1,0 +1,17 @@
+Package: luci-app-webauthn
+Version: 1.0.2-r1
+Depends: libc, luci-base
+Source: feeds/base/luci-app-webauthn
+SourceName: luci-app-webauthn
+License: Apache-2.0
+Section: luci
+SourceDateEpoch: 1758316778
+URL: https://github.com/openwrt/luci
+Maintainer: OpenWrt LuCI community
+Architecture: all
+Installed-Size: 40960
+Description:  LuCI WebAuthn Passkey Authentication
+Filename: luci-app-webauthn_1.0.2-r1_all.ipk
+Size: 7976
+SHA256sum: a54955781815b2bf0c0cfeeb8b3239208dad60b27fdd0ca466263d002c4efbde
+
