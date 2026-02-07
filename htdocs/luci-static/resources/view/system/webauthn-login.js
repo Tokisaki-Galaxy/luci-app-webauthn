@@ -10,7 +10,7 @@
 	'use strict';
 
 	var UBUS_URL = '/ubus';
-	var ANON_SID = '00000000000000000000000000000000';
+	var ANON_SID = '00000000000000000000000000000000'; /* ubus anonymous session */
 	var rpcId = 1;
 
 	var utils = {
