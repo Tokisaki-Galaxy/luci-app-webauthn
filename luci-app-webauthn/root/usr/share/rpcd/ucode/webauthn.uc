@@ -36,7 +36,9 @@ function get_rp_id(origin) {
 	return parts[0];
 }
 
-// Shell-escape a value using single quotes.
+// Shell-escape a value using POSIX single-quote wrapping.
+// Inside single quotes all characters are literal; only ' itself needs
+// the break-escape-reopen sequence: ' → '\''
 function esc(s) {
 	return "'" + replace(s ?? '', "'", "'\\''") + "'";
 }
@@ -132,6 +134,8 @@ const methods = {
 			let cmd = sprintf('%s register-finish --challenge-id %s --origin %s --device-name %s',
 				HELPER_BIN, esc(a.challengeId), esc(origin), esc(a.deviceName));
 
+			// WebAuthn spec: rawId is the binary form, id is base64url.
+			// In JSON both carry the same base64url value; the CLI expects both.
 			let stdin_data = sprintf('%J', {
 				id: a.id, rawId: a.id, type: a.type, response: a.response
 			});
@@ -173,7 +177,9 @@ const methods = {
 			});
 
 			let data = unwrap(exec_helper(cmd, stdin_data));
-			// Frontend login flow checks data.success to trigger redirect
+			// login_finish is the only endpoint where the frontend JS explicitly
+			// checks data.success to trigger a redirect (webauthn-login.js).
+			// Other endpoints rely on the absence of data.error instead.
 			if (data && !data.error)
 				data.success = true;
 			return data;
