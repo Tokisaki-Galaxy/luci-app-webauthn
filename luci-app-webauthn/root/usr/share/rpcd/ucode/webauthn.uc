@@ -105,9 +105,9 @@ const methods = {
 	},
 
 	register_begin: {
-		args: { username: 'username', userVerification: 'userVerification' },
+		args: { username: 'username', userVerification: 'userVerification', origin: 'origin' },
 		call: function(request) {
-			let origin = get_origin();
+			let origin = request.args.origin || get_origin();
 			let rp_id = get_rp_id(origin);
 			let username = request.args.username || 'root';
 			let uv = request.args.userVerification || 'preferred';
@@ -125,10 +125,11 @@ const methods = {
 			deviceName: 'deviceName',
 			id: 'id',
 			type: 'type',
-			response: {}
+			response: {},
+			origin: 'origin'
 		},
 		call: function(request) {
-			let origin = get_origin();
+			let origin = request.args.origin || get_origin();
 			let a = request.args;
 
 			let cmd = sprintf('%s register-finish --challenge-id %s --origin %s --device-name %s',
@@ -145,9 +146,9 @@ const methods = {
 	},
 
 	login_begin: {
-		args: { username: 'username' },
+		args: { username: 'username', origin: 'origin' },
 		call: function(request) {
-			let origin = get_origin();
+			let origin = request.args.origin || get_origin();
 			let rp_id = get_rp_id(origin);
 			let username = request.args.username || 'root';
 
@@ -163,10 +164,11 @@ const methods = {
 			challengeId: 'challengeId',
 			id: 'id',
 			type: 'type',
-			response: {}
+			response: {},
+			origin: 'origin'
 		},
 		call: function(request) {
-			let origin = get_origin();
+			let origin = request.args.origin || get_origin();
 			let a = request.args;
 
 			let cmd = sprintf('%s login-finish --challenge-id %s --origin %s',

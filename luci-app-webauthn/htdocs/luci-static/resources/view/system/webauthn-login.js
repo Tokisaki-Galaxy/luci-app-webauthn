@@ -83,7 +83,7 @@
 		hideStatus();
 		showStatus('Waiting for passkey\u2026', false);
 
-		ubusCall('luci.webauthn', 'login_begin', { username: 'root' })
+		ubusCall('luci.webauthn', 'login_begin', { username: 'root', origin: window.location.origin })
 			.then(function(data) {
 				if (data.error) throw data;
 
@@ -112,7 +112,8 @@
 						authenticatorData: utils.encode(cred.response.authenticatorData),
 						signature: utils.encode(cred.response.signature),
 						clientDataJSON: utils.encode(cred.response.clientDataJSON)
-					}
+					},
+					origin: window.location.origin
 				};
 
 				if (cred.response.userHandle)
