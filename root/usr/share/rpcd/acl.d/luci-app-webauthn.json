@@ -1,0 +1,42 @@
+{
+	"luci-app-webauthn": {
+		"description": "Grant access to WebAuthn passkey management",
+		"read": {
+			"ubus": {
+				"luci.webauthn": [
+					"register_begin",
+					"register_finish",
+					"login_begin",
+					"login_finish",
+					"manage_list",
+					"manage_delete",
+					"manage_update",
+					"health"
+				]
+			}
+		},
+		"write": {
+			"ubus": {
+				"luci.webauthn": [
+					"register_begin",
+					"register_finish",
+					"manage_delete",
+					"manage_update"
+				]
+			}
+		}
+	},
+
+	"unauthenticated": {
+		"description": "Allow unauthenticated WebAuthn login and health check",
+		"read": {
+			"ubus": {
+				"luci.webauthn": [
+					"login_begin",
+					"login_finish",
+					"health"
+				]
+			}
+		}
+	}
+}

@@ -562,17 +562,21 @@ function load_auth_plugins() {
 
 function get_auth_challenge(user) {
 	let plugins = load_auth_plugins();
+	let extra_html = [];
 
 	for (let plugin in plugins) {
 		try {
 			let result = plugin.check(http, user);
+			if (result?.html)
+				push(extra_html, result.html);
+
 			if (result?.required) {
 				return {
 					pending: true,
 					plugin: plugin,
 					fields: result.fields ?? [],
 					message: result.message ?? '',
-					html: result.html
+					html: join('', extra_html)
 				};
 			}
 		}
@@ -582,7 +586,10 @@ function get_auth_challenge(user) {
 		}
 	}
 
-	return { pending: false };
+	return {
+		pending: false,
+		html: length(extra_html) ? join('', extra_html) : null
+	};
 }
 
 function verify_auth_challenge(user) {
