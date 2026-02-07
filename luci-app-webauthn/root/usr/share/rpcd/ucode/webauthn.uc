@@ -1,7 +1,11 @@
 #!/usr/bin/env ucode
 
 // LuCI WebAuthn RPC middleware
-// Proxies requests to the webauthn-helper Rust CLI
+// Proxies requests to the webauthn-helper Rust CLI (v1.0)
+//
+// The CLI uses subcommand flags (not stdin JSON) for most commands,
+// and only register-finish / login-finish read client JSON from stdin.
+// All CLI responses use the envelope { success, data } or { success, error }.
 
 'use strict';
 
@@ -11,13 +15,10 @@ import { cursor } from 'uci';
 const HELPER_BIN = '/usr/bin/webauthn-helper';
 
 function get_origin() {
-	// Origin is determined at request time from HTTP headers,
-	// but in RPC context we read it from UCI or construct from system info.
 	const uci = cursor();
 	let origin = uci.get('webauthn', 'settings', 'origin');
 
 	if (!origin) {
-		// Fallback: construct from hostname
 		let fd = popen('uci get system.@system[0].hostname 2>/dev/null');
 		let hostname = fd ? trim(fd.read('all')) : 'openwrt';
 		if (fd) fd.close();
@@ -27,46 +28,68 @@ function get_origin() {
 	return origin;
 }
 
-function exec_helper(subcmd, args_str, stdin_data) {
+// Extract hostname (rp-id) from an origin URL, stripping scheme and port.
+function get_rp_id(origin) {
+	let rest = replace(origin, /^https?:\/\//, '');
+	let host = split(rest, '/')[0];
+	let parts = split(host, ':');
+	return parts[0];
+}
+
+// Shell-escape a value using single quotes.
+function esc(s) {
+	return "'" + replace(s ?? '', "'", "'\\''") + "'";
+}
+
+// Execute the helper binary and return parsed JSON.
+// `cmd` is the full command string; `stdin_data` is optional JSON piped to stdin.
+function exec_helper(cmd, stdin_data) {
 	if (!access(HELPER_BIN)) {
 		return { error: 'HELPER_NOT_FOUND', message: 'webauthn-helper binary not found' };
 	}
 
-	let origin = get_origin();
-	let cmd = sprintf('%s %s --origin %s',
-		HELPER_BIN,
-		args_str ?? subcmd,
-		origin);
-
-	let fd;
+	let full_cmd;
 	if (stdin_data) {
-		let json_input = sprintf('%s', stdin_data);
-		// Use printf to pipe JSON into stdin of the helper
-		cmd = sprintf("printf '%%s' '%s' | %s",
-			replace(json_input, "'", "'\\''"),
-			cmd);
-		fd = popen(cmd, 'r');
+		full_cmd = sprintf("printf '%%s' %s | %s", esc(stdin_data), cmd);
 	} else {
-		fd = popen(cmd, 'r');
+		full_cmd = cmd;
 	}
 
+	let fd = popen(full_cmd, 'r');
 	if (!fd) {
 		return { error: 'EXEC_FAILED', message: 'Failed to execute webauthn-helper' };
 	}
 
 	let output = fd.read('all');
-	let exit_code = fd.close();
+	fd.close();
 
 	let result;
 	try {
 		result = json(output);
 	} catch (e) {
-		result = { error: 'PARSE_ERROR', message: 'Invalid JSON response from helper', raw: output };
+		return { error: 'PARSE_ERROR', message: 'Invalid JSON from helper' };
 	}
 
-	if (exit_code != 0 && !result.error) {
-		result.error = 'HELPER_ERROR';
-	}
+	return result;
+}
+
+// Unwrap the { success, data } / { success, error } envelope from the CLI.
+// Returns the inner `data` on success, or { error, message } on failure.
+function unwrap(result) {
+	if (result == null)
+		return result;
+
+	// Already a middleware-level error (no envelope)
+	if (type(result.error) == 'string')
+		return result;
+
+	// CLI error: { success: false, error: { code, message } }
+	if (result.success == false && result.error)
+		return { error: result.error.code, message: result.error.message };
+
+	// CLI success: { success: true, data: <payload> }
+	if (result.success == true)
+		return result.data;
 
 	return result;
 }
@@ -74,20 +97,23 @@ function exec_helper(subcmd, args_str, stdin_data) {
 const methods = {
 	health: {
 		call: function() {
-			return exec_helper('health-check');
+			let cmd = sprintf('%s health-check', HELPER_BIN);
+			return unwrap(exec_helper(cmd));
 		}
 	},
 
 	register_begin: {
 		args: { username: 'username', userVerification: 'userVerification' },
 		call: function(request) {
-			let input = {};
-			if (request.args.username)
-				input.username = request.args.username;
-			if (request.args.userVerification)
-				input.userVerification = request.args.userVerification;
+			let origin = get_origin();
+			let rp_id = get_rp_id(origin);
+			let username = request.args.username || 'root';
+			let uv = request.args.userVerification || 'preferred';
 
-			return exec_helper('register-begin', 'register-begin', sprintf('%J', input));
+			let cmd = sprintf('%s register-begin --username %s --rp-id %s --user-verification %s',
+				HELPER_BIN, esc(username), esc(rp_id), esc(uv));
+
+			return unwrap(exec_helper(cmd));
 		}
 	},
 
@@ -97,21 +123,34 @@ const methods = {
 			deviceName: 'deviceName',
 			id: 'id',
 			type: 'type',
-			response: 'response'
+			response: {}
 		},
 		call: function(request) {
-			return exec_helper('register-finish', 'register-finish', sprintf('%J', request.args));
+			let origin = get_origin();
+			let a = request.args;
+
+			let cmd = sprintf('%s register-finish --challenge-id %s --origin %s --device-name %s',
+				HELPER_BIN, esc(a.challengeId), esc(origin), esc(a.deviceName));
+
+			let stdin_data = sprintf('%J', {
+				id: a.id, rawId: a.id, type: a.type, response: a.response
+			});
+
+			return unwrap(exec_helper(cmd, stdin_data));
 		}
 	},
 
 	login_begin: {
 		args: { username: 'username' },
 		call: function(request) {
-			let input = {};
-			if (request.args.username)
-				input.username = request.args.username;
+			let origin = get_origin();
+			let rp_id = get_rp_id(origin);
+			let username = request.args.username || 'root';
 
-			return exec_helper('login-begin', 'login-begin', sprintf('%J', input));
+			let cmd = sprintf('%s login-begin --username %s --rp-id %s',
+				HELPER_BIN, esc(username), esc(rp_id));
+
+			return unwrap(exec_helper(cmd));
 		}
 	},
 
@@ -120,31 +159,65 @@ const methods = {
 			challengeId: 'challengeId',
 			id: 'id',
 			type: 'type',
-			response: 'response'
+			response: {}
 		},
 		call: function(request) {
-			return exec_helper('login-finish', 'login-finish', sprintf('%J', request.args));
+			let origin = get_origin();
+			let a = request.args;
+
+			let cmd = sprintf('%s login-finish --challenge-id %s --origin %s',
+				HELPER_BIN, esc(a.challengeId), esc(origin));
+
+			let stdin_data = sprintf('%J', {
+				id: a.id, rawId: a.id, type: a.type, response: a.response
+			});
+
+			let data = unwrap(exec_helper(cmd, stdin_data));
+			// Frontend login flow checks data.success to trigger redirect
+			if (data && !data.error)
+				data.success = true;
+			return data;
 		}
 	},
 
 	manage_list: {
 		call: function() {
-			return exec_helper('credential-manage', 'credential-manage list');
+			let cmd = sprintf('%s credential-manage list --username %s',
+				HELPER_BIN, esc('root'));
+
+			let data = unwrap(exec_helper(cmd));
+
+			// Backend returns an array; frontend expects { credentials: [...] }.
+			// Also map credentialId -> id for each item.
+			if (type(data) == 'array') {
+				for (let i = 0; i < length(data); i++) {
+					if (data[i].credentialId)
+						data[i].id = data[i].credentialId;
+				}
+				return { credentials: data };
+			}
+
+			return data;
 		}
 	},
 
 	manage_delete: {
 		args: { id: 'id' },
 		call: function(request) {
-			return exec_helper('credential-manage', 'credential-manage delete', sprintf('%J', { id: request.args.id }));
+			let cmd = sprintf('%s credential-manage delete --id %s',
+				HELPER_BIN, esc(request.args.id));
+
+			return unwrap(exec_helper(cmd));
 		}
 	},
 
 	manage_update: {
 		args: { id: 'id', name: 'name' },
 		call: function(request) {
-			return exec_helper('credential-manage', 'credential-manage update',
-				sprintf('%J', { id: request.args.id, name: request.args.name }));
+			let cmd = sprintf('%s credential-manage update --id %s --name %s',
+				HELPER_BIN, esc(request.args.id), esc(request.args.name));
+
+			return unwrap(exec_helper(cmd));
 		}
 	}
 };

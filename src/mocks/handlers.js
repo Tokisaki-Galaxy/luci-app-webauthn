@@ -1,9 +1,14 @@
 import { http, HttpResponse } from 'msw'
 
-// Mock responses for each ubus method
+// Mock responses matching the real backend (after middleware unwrapping).
+// The middleware transforms { success, data } envelopes and field names.
 const MOCK_RESPONSES = {
   'luci.webauthn': {
-    health: { status: 'ok', version: '1.0.0' },
+    health: {
+      status: 'ok',
+      version: '1.0.0',
+      storage: { writable: true, path: '/etc/webauthn/credentials.json', count: 2 },
+    },
     register_begin: {
       challengeId: 'mock-challenge-id-register',
       publicKey: {
@@ -22,7 +27,11 @@ const MOCK_RESPONSES = {
         },
       },
     },
-    register_finish: { success: true, credentialId: 'mock-credential-id' },
+    register_finish: {
+      credentialId: 'mock-credential-id',
+      aaguid: '00000000-0000-0000-0000-000000000000',
+      createdAt: '2025-01-15T10:30:00Z',
+    },
     login_begin: {
       challengeId: 'mock-challenge-id-login',
       publicKey: {
@@ -35,27 +44,37 @@ const MOCK_RESPONSES = {
         userVerification: 'preferred',
       },
     },
-    login_finish: { success: true },
+    login_finish: { success: true, username: 'root', userVerified: true, counter: 1 },
     manage_list: {
       credentials: [
         {
           id: 'mock-credential-1',
+          credentialId: 'mock-credential-1',
+          username: 'root',
           deviceName: 'My Laptop Chrome',
           createdAt: '2025-01-15T10:30:00Z',
           lastUsedAt: '2025-06-01T08:00:00Z',
+          backupEligible: false,
           userVerified: true,
         },
         {
           id: 'mock-credential-2',
+          credentialId: 'mock-credential-2',
+          username: 'root',
           deviceName: 'iPhone Safari',
           createdAt: '2025-03-20T14:00:00Z',
           lastUsedAt: null,
+          backupEligible: false,
           userVerified: false,
         },
       ],
     },
-    manage_delete: { success: true },
-    manage_update: { success: true },
+    manage_delete: { credentialId: 'mock-credential-1', deleted: true },
+    manage_update: {
+      credentialId: 'mock-credential-1',
+      oldName: 'My Laptop Chrome',
+      newName: 'Updated Name',
+    },
   },
 }
 
