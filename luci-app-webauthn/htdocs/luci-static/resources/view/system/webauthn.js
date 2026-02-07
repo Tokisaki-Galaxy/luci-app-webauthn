@@ -276,12 +276,15 @@ return view.extend({
 			children.push(E('div', { 'class': 'alert-message warning' },
 				_('WebAuthn service is not available: %s').format(
 					health.message || health.error)));
+		} else if (!window.PublicKeyCredential) {
+			children.push(E('div', { 'class': 'alert-message warning' },
+				_('Your browser does not support passkeys (WebAuthn).')));
 		}
 
 		var registerBtn = E('button', {
 			'class': 'btn cbi-button cbi-button-positive',
 			'click': function() { self.handleRegister(); },
-			'disabled': !window.isSecureContext || !!health.error || !window.PublicKeyCredential
+			'disabled': (!window.isSecureContext || !!health.error || !window.PublicKeyCredential) || null
 		}, [ '\u{1F511} ', _('Register New Passkey') ]);
 
 		children.push(E('div', { 'class': 'cbi-section' }, [
