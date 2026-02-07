@@ -9,7 +9,9 @@
 (function() {
 	'use strict';
 
-	var RPC_BASE = '/cgi-bin/luci/rpc/webauthn/';
+	var UBUS_URL = '/ubus';
+	var ANON_SID = '00000000000000000000000000000000';
+	var rpcId = 1;
 
 	var utils = {
 		decode: function(str) {
@@ -33,13 +35,23 @@
 		'AbortError': 'Operation cancelled.'
 	};
 
-	function rpcCall(endpoint, method, body) {
-		var opts = {
-			method: method || 'POST',
-			headers: { 'Content-Type': 'application/json' }
-		};
-		if (body) opts.body = JSON.stringify(body);
-		return fetch(RPC_BASE + endpoint, opts).then(function(r) { return r.json(); });
+	function ubusCall(object, method, params) {
+		return fetch(UBUS_URL, {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({
+				jsonrpc: '2.0',
+				id: rpcId++,
+				method: 'call',
+				params: [ANON_SID, object, method, params || {}]
+			})
+		}).then(function(r) { return r.json(); }).then(function(data) {
+			if (data.result && data.result[0] === 0)
+				return data.result[1] || {};
+			if (data.error)
+				throw { error: 'RPC_ERROR', message: data.error.message || 'RPC call failed' };
+			throw { error: 'RPC_ERROR', message: 'Unexpected response' };
+		});
 	}
 
 	function showStatus(msg, isError) {
@@ -71,7 +83,7 @@
 		hideStatus();
 		showStatus('Waiting for passkey\u2026', false);
 
-		rpcCall('login_begin', 'POST', { username: 'root' })
+		ubusCall('luci.webauthn', 'login_begin', { username: 'root' })
 			.then(function(data) {
 				if (data.error) throw data;
 
@@ -106,7 +118,7 @@
 				if (cred.response.userHandle)
 					payload.response.userHandle = utils.encode(cred.response.userHandle);
 
-				return rpcCall('login_finish', 'POST', payload);
+				return ubusCall('luci.webauthn', 'login_finish', payload);
 			})
 			.then(function(data) {
 				if (data.error) throw data;
@@ -138,7 +150,7 @@
 			return;
 		}
 
-		rpcCall('health', 'GET')
+		ubusCall('luci.webauthn', 'health')
 			.then(function(data) {
 				if (data && data.status === 'ok') {
 					btn.disabled = false;

@@ -263,14 +263,19 @@ return view.extend({
 		var manageData = data[1] || {};
 		var credentials = manageData.credentials || [];
 
-		var warning = null;
+		var children = [
+			E('h2', _('Passkey Management')),
+			E('div', { 'class': 'cbi-map-descr' },
+				_('Manage WebAuthn passkeys for passwordless login to this router.'))
+		];
+
 		if (!window.isSecureContext) {
-			warning = E('div', { 'class': 'alert-message warning' },
-				_('Passkeys require HTTPS. Please configure SSL/TLS on this router.'));
+			children.push(E('div', { 'class': 'alert-message warning' },
+				_('Passkeys require HTTPS. Please configure SSL/TLS on this router.')));
 		} else if (health.error) {
-			warning = E('div', { 'class': 'alert-message warning' },
+			children.push(E('div', { 'class': 'alert-message warning' },
 				_('WebAuthn service is not available: %s').format(
-					health.message || health.error));
+					health.message || health.error)));
 		}
 
 		var registerBtn = E('button', {
@@ -279,20 +284,16 @@ return view.extend({
 			'disabled': !window.isSecureContext || !!health.error || !window.PublicKeyCredential
 		}, [ '\u{1F511} ', _('Register New Passkey') ]);
 
-		return E('div', { 'class': 'cbi-map' }, [
-			E('h2', _('Passkey Management')),
-			E('div', { 'class': 'cbi-map-descr' },
-				_('Manage WebAuthn passkeys for passwordless login to this router.')),
-			warning,
-			E('div', { 'class': 'cbi-section' }, [
-				E('div', { 'id': 'webauthn-table-container' }, [
-					this.renderCredentialTable(credentials)
-				]),
-				E('div', { 'class': 'cbi-page-actions', 'style': 'margin-top:1em' }, [
-					registerBtn
-				])
+		children.push(E('div', { 'class': 'cbi-section' }, [
+			E('div', { 'id': 'webauthn-table-container' }, [
+				this.renderCredentialTable(credentials)
+			]),
+			E('div', { 'class': 'cbi-page-actions', 'style': 'margin-top:1em' }, [
+				registerBtn
 			])
-		]);
+		]));
+
+		return E('div', { 'class': 'cbi-map' }, children);
 	},
 
 	handleSave: null,

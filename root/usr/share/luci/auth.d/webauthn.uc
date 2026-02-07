@@ -51,10 +51,10 @@ return {
 			+ '<div id="webauthn-status" style="display:none" class="alert-message"></div>'
 			+ '<button type="button" id="webauthn-login-btn" class="btn cbi-button" '
 			+ 'style="width:100%;margin-top:0.5em" disabled>'
-			+ '\u{1F511} ' + 'Passkey'
+			+ '&#x1F511; ' + 'Passkey'
 			+ '</button>'
 			+ '</div>'
-			+ '<script src="' + script_url + '"></script>';
+			+ '<script src="' + script_url + '"><\/script>';
 
 		return {
 			required: false,

@@ -1,22 +1,14 @@
 import { http, HttpResponse } from 'msw'
 
-const RPC_BASE = '/cgi-bin/luci/rpc/webauthn'
-
-export const handlers = [
-  http.get(`${RPC_BASE}/health`, () => {
-    return HttpResponse.json({ status: 'ok', version: '1.0.0' })
-  }),
-
-  http.post(`${RPC_BASE}/register_begin`, () => {
-    return HttpResponse.json({
+// Mock responses for each ubus method
+const MOCK_RESPONSES = {
+  'luci.webauthn': {
+    health: { status: 'ok', version: '1.0.0' },
+    register_begin: {
       challengeId: 'mock-challenge-id-register',
       publicKey: {
         rp: { name: 'OpenWrt', id: 'localhost' },
-        user: {
-          id: 'cm9vdA',
-          name: 'root',
-          displayName: 'root',
-        },
+        user: { id: 'cm9vdA', name: 'root', displayName: 'root' },
         challenge: 'dGVzdC1jaGFsbGVuZ2UtcmVnaXN0ZXI',
         pubKeyCredParams: [
           { type: 'public-key', alg: -7 },
@@ -29,15 +21,9 @@ export const handlers = [
           residentKey: 'preferred',
         },
       },
-    })
-  }),
-
-  http.post(`${RPC_BASE}/register_finish`, () => {
-    return HttpResponse.json({ success: true, credentialId: 'mock-credential-id' })
-  }),
-
-  http.post(`${RPC_BASE}/login_begin`, () => {
-    return HttpResponse.json({
+    },
+    register_finish: { success: true, credentialId: 'mock-credential-id' },
+    login_begin: {
       challengeId: 'mock-challenge-id-login',
       publicKey: {
         challenge: 'dGVzdC1jaGFsbGVuZ2UtbG9naW4',
@@ -48,15 +34,9 @@ export const handlers = [
         ],
         userVerification: 'preferred',
       },
-    })
-  }),
-
-  http.post(`${RPC_BASE}/login_finish`, () => {
-    return HttpResponse.json({ success: true })
-  }),
-
-  http.get(`${RPC_BASE}/manage_list`, () => {
-    return HttpResponse.json({
+    },
+    login_finish: { success: true },
+    manage_list: {
       credentials: [
         {
           id: 'mock-credential-1',
@@ -73,14 +53,31 @@ export const handlers = [
           userVerified: false,
         },
       ],
+    },
+    manage_delete: { success: true },
+    manage_update: { success: true },
+  },
+}
+
+export const handlers = [
+  // Intercept ubus JSON-RPC calls (used by login page directly)
+  http.post('/ubus', async ({ request }) => {
+    const body = await request.json()
+    if (body.method === 'call' && Array.isArray(body.params) && body.params.length >= 4) {
+      const [, object, method] = body.params
+      const response = MOCK_RESPONSES[object]?.[method]
+      if (response) {
+        return HttpResponse.json({
+          jsonrpc: '2.0',
+          id: body.id,
+          result: [0, response],
+        })
+      }
+    }
+    return HttpResponse.json({
+      jsonrpc: '2.0',
+      id: body.id,
+      error: { code: -32000, message: 'Object not found' },
     })
-  }),
-
-  http.post(`${RPC_BASE}/manage_delete`, () => {
-    return HttpResponse.json({ success: true })
-  }),
-
-  http.post(`${RPC_BASE}/manage_update`, () => {
-    return HttpResponse.json({ success: true })
   }),
 ]
