@@ -124,6 +124,16 @@
 			.then(function(data) {
 				if (data.error) throw data;
 				if (data.success) {
+					if (data.sessionId) {
+						var cookieName = (window.location.protocol === 'https:')
+							? 'sysauth_https' : 'sysauth_http';
+						var cookieSecure = (window.location.protocol === 'https:')
+							? '; Secure' : '';
+						document.cookie = cookieName + '=' + data.sessionId
+							+ '; path=/cgi-bin/luci'
+							+ '; SameSite=Strict'
+							+ cookieSecure;
+					}
 					showStatus('Login successful! Redirecting\u2026', false);
 					window.location.href = '/cgi-bin/luci/';
 				} else {

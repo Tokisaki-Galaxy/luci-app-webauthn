@@ -565,6 +565,7 @@ function get_auth_challenge(user) {
 	let all_fields = [];
 	let all_html_parts = [];
 	let all_messages = [];
+	let extra_html_parts = [];
 	let first_plugin = null;
 
 	for (let plugin in plugins) {
@@ -582,6 +583,8 @@ function get_auth_challenge(user) {
 
 				if (result.message)
 					push(all_messages, result.message);
+			} else if (result?.html) {
+				push(extra_html_parts, result.html);
 			}
 		}
 		catch (e) {
@@ -590,17 +593,19 @@ function get_auth_challenge(user) {
 		}
 	}
 
+	let combined_html = join('', [...all_html_parts, ...extra_html_parts]);
+
 	if (first_plugin) {
 		return {
 			pending: true,
 			plugin: first_plugin,
 			fields: all_fields,
 			message: join(' ', all_messages),
-			html: join('', all_html_parts)
+			html: combined_html
 		};
 	}
 
-	return { pending: false };
+	return { pending: false, html: length(combined_html) ? combined_html : null };
 }
 
 function verify_auth_challenge(user) {
