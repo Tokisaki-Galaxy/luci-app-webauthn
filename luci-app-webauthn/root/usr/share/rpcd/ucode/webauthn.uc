@@ -99,6 +99,18 @@ function unwrap(result) {
 }
 
 function randomid(n) {
+	let fd = open('/dev/urandom', 'r');
+	if (fd) {
+		let raw = fd.read(n);
+		fd.close();
+		if (raw) {
+			let bytes = [];
+			for (let i = 0; i < n; i++)
+				push(bytes, sprintf('%02x', ord(raw, i)));
+			return join('', bytes);
+		}
+	}
+	// Fallback to math.rand (matches dispatcher.uc randomid)
 	let bytes = [];
 	while (n-- > 0)
 		push(bytes, sprintf('%02x', rand() % 256));
@@ -334,8 +346,12 @@ const methods = {
 			if (data && !data.error) {
 				data.success = true;
 
-				// Create a LuCI session so the user is fully authenticated
-				let username = data.username || 'root';
+				// Create a LuCI session so the user is fully authenticated.
+				// Username must come from the verified credential.
+				let username = data.username;
+				if (!username) {
+					return { error: 'AUTH_ERROR', message: 'WebAuthn verification did not return a username' };
+				}
 				let session = create_luci_session(username);
 				if (session) {
 					data.sessionId = session.sid;
