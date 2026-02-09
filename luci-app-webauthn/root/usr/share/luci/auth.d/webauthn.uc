@@ -15,7 +15,7 @@
 
 import { popen, access } from 'fs';
 
-const HELPER_BIN = '/usr/bin/webauthn-helper';
+const HELPER_BIN = '/usr/libexec/webauthn-helper';
 
 function helper_available() {
 	return access(HELPER_BIN);
@@ -46,13 +46,15 @@ return {
 		// Instead, we inject a script block via the `html` property that adds
 		// the "Login with Passkey" button and handles the WebAuthn ceremony.
 		let script_url = '/luci-static/resources/view/system/webauthn-login.js';
+		// Use <input type="button"> instead of <button> to avoid conflicting with
+		// bootstrap sysauth.js which uses document.querySelector('button') to find
+		// the "Log in" button – a <button> here would be matched first.
 		let html_block = '<div id="webauthn-login-container">'
 			+ '<hr style="margin:1em 0">'
 			+ '<div id="webauthn-status" style="display:none" class="alert-message"></div>'
-			+ '<button type="button" id="webauthn-login-btn" class="btn cbi-button" '
-			+ 'style="width:100%;margin-top:0.5em" disabled>'
-			+ '&#x1F511; ' + 'Passkey'
-			+ '</button>'
+			+ '<input type="button" id="webauthn-login-btn" class="btn cbi-button" '
+			+ 'style="width:100%;margin-top:0.5em" disabled '
+			+ 'value="&#x1F511; Passkey">'
 			+ '</div>'
 			+ '<script src="' + script_url + '"><\/script>';
 
