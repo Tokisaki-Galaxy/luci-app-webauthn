@@ -1,7 +1,7 @@
 #!/bin/sh
-# LuCI-App-2FA Authentication Plugin Mechanism Installation Script
+# LuCI-App-webauthn Authentication Plugin Mechanism Installation Script
 # This script downloads and applies patches from GitHub via jsdelivr CDN
-# Repository: https://github.com/Tokisaki-Galaxy/luci-app-2fa
+# Repository: https://github.com/Tokisaki-Galaxy/luci-app-webauthn
 # Author: Tokisaki-Galaxy
 # License: Apache 2.0
 
@@ -19,7 +19,7 @@ AUTO_CONFIRM=0
 
 # GitHub repository info
 REPO_OWNER="Tokisaki-Galaxy"
-REPO_NAME="luci-app-2fa"
+REPO_NAME="luci-app-webauthn"
 BRANCH="master"
 BASE_URL="https://cdn.jsdelivr.net/gh/${REPO_OWNER}/${REPO_NAME}@${BRANCH}/luci-patch/patch"
 
@@ -37,7 +37,7 @@ view/system/exauth.js|/www/luci-static/resources/view/system/exauth.js
 
 print_header() {
     printf "${BLUE}========================================${NC}\n"
-    printf "${BLUE}   LuCI-App-2FA Patch Installer${NC}\n"
+    printf "${BLUE}   LuCI-App-webauthn Patch Installer${NC}\n"
     printf "${BLUE}========================================${NC}\n"
     printf "\n"
 }
@@ -210,7 +210,7 @@ download_and_install_patches() {
     print_info "Downloading and installing patch files..."
     printf "\n"
     
-    local temp_dir="/tmp/luci-app-2fa-patches"
+    local temp_dir="/tmp/luci-app-webauthn-patches"
     mkdir -p "$temp_dir"
     
     # Save PATCH_FILES to a temp file to avoid subshell issues
@@ -309,7 +309,7 @@ print_post_install_info() {
     printf "\n"
     print_info "What's next:"
     printf "\n"
-    printf "  1. Install luci-app-2fa package:\n"
+    printf "  1. Install luci-app-webauthn package:\n"
     printf "     ${GREEN}wget https://tokisaki-galaxy.github.io/${REPO_NAME}/all/key-build.pub -O /tmp/key-build.pub${NC}\n"
     printf "     ${GREEN}opkg-key add /tmp/key-build.pub${NC}\n"
     printf "     ${GREEN}echo 'src/gz ${REPO_NAME} https://tokisaki-galaxy.github.io/${REPO_NAME}/all' >> /etc/opkg/customfeeds.conf${NC}\n"
