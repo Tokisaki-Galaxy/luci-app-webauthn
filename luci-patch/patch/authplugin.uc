@@ -9,7 +9,7 @@
 
 import { glob } from 'fs';
 import { cursor } from 'uci';
-import { syslog, LOG_INFO, LOG_WARNING, LOG_AUTHPRIV } from 'log';
+import { openlog, syslog, LOG_INFO, LOG_WARNING, LOG_AUTHPRIV } from 'log';
 
 const AUTH_PLUGINS_DIR = '/usr/share/luci/auth.d';
 
@@ -69,8 +69,15 @@ function get_auth_challenge(http, user) {
 	for (let plugin in plugins) {
 		try {
 			let result = plugin.check(http, user);
-			if (result?.session && !auth_session)
+			if (result?.session && !auth_session) {
 				auth_session = result.session;
+				openlog('dispatcher.uc');
+				syslog(LOG_INFO|LOG_AUTHPRIV,
+					sprintf("luci: accepted login on %s for %s from %s",
+						http.getenv('PATH_INFO') || '/',
+						auth_session.data?.username || user || "?",
+						http.getenv('REMOTE_ADDR') || "?"));
+			}
 			if (result?.required) {
 				if (!first_plugin)
 					first_plugin = plugin;
