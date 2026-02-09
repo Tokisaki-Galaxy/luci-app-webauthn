@@ -164,8 +164,9 @@
 				var btn = document.getElementById('webauthn-login-btn');
 				if (btn) btn.disabled = false;
 			}
-		}).catch(function() {
+		}).catch(function(err) {
 			// Network error: fall back to traditional form submission
+			console.error('WebAuthn: fetch submit failed, using form fallback:', err);
 			var form = document.querySelector('form[method="post"]');
 			if (form) {
 				var input = document.createElement('input');

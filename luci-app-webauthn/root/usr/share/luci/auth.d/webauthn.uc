@@ -22,7 +22,7 @@ import { connect } from 'ubus';
 import { cursor } from 'uci';
 import { openlog, syslog, LOG_INFO, LOG_WARNING, LOG_AUTHPRIV } from 'log';
 
-openlog('webauthn', 0, 0);
+openlog('webauthn');
 
 const HELPER_BIN = '/usr/libexec/webauthn-helper';
 const VERIFY_TOKEN_MAX_AGE = 120;
@@ -30,8 +30,8 @@ const VERIFY_TOKEN_MAX_AGE = 120;
 // Diagnostic logger: writes to syslog AND a debug file for troubleshooting.
 // Syslog may be unavailable in some uhttpd contexts (logd not running, etc.).
 function log_debug(msg) {
-	syslog(LOG_WARNING, msg);
-	let fd = open('/tmp/webauthn-auth.log', 'a');
+	syslog(LOG_INFO, msg);
+	let fd = open('/tmp/webauthn-auth.log', 'a', 0600);
 	if (fd) {
 		fd.write(sprintf('[%d] %s\n', time(), msg));
 		fd.close();
@@ -255,8 +255,8 @@ return {
 					sprintf("luci: webauthn session creation failed for %s from %s",
 						verified_user, remote_addr));
 			} else {
-				log_debug(sprintf('luci: webauthn token validation failed from %s token=%s',
-					remote_addr, verify_token));
+				log_debug(sprintf('luci: webauthn token validation failed from %s',
+					remote_addr));
 				syslog(LOG_WARNING|LOG_AUTHPRIV,
 					sprintf("luci: webauthn token validation failed from %s",
 						remote_addr));
