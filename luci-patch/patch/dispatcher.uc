@@ -12,15 +12,14 @@ import { hash, load_catalog, change_catalog, translate, ntranslate, getuid } fro
 import { revision as luciversion, branch as luciname } from 'luci.version';
 import { default as LuCIRuntime } from 'luci.runtime';
 import { urldecode } from 'luci.http';
+import { get_auth_challenge, verify_auth_challenge } from 'luci.authplugin';
 
 let ubus = connect();
 let uci = cursor();
 
 let indexcache = "/tmp/luci-indexcache";
-let auth_plugins_dir = "/usr/share/luci/auth.d";
 
 let http, runtime, tree, luabridge;
-let auth_plugins = null;
 
 function error404(msg) {
 	http.status(404, 'Not Found');
@@ -522,130 +521,6 @@ function session_setup(user, pass, path) {
 	closelog();
 }
 
-function load_auth_plugins() {
-	if (uci.get("luci", "main", "external_auth") != "1")
-		return [];
-
-	if (auth_plugins != null)
-		return auth_plugins;
-
-	auth_plugins = [];
-
-	for (let path in glob(auth_plugins_dir + '/*.uc')) {
-		try {
-			let code = loadfile(path);
-			if (!code)
-				continue;
-
-			let plugin = call(code);
-			if (type(plugin) == 'object' &&
-				type(plugin.name) == 'string' &&
-				type(plugin.check) == 'function' &&
-				type(plugin.verify) == 'function') {
-				let is_disabled = uci.get('luci', 'sauth', `${plugin.name}_disabled`);
-				if (is_disabled == '1' || is_disabled === true) {
-					continue;
-				}
-				push(auth_plugins, plugin);
-			}
-		}
-		catch (e) {
-			// Skip invalid plugins silently
-		}
-	}
-
-	// Sort by priority (lower = first)
-	auth_plugins = sort(auth_plugins, (a, b) => (a.priority ?? 50) - (b.priority ?? 50));
-
-	return auth_plugins;
-}
-
-function get_auth_challenge(user) {
-	let plugins = load_auth_plugins();
-	let all_fields = [];
-	let all_html_parts = [];
-	let all_messages = [];
-	let extra_html_parts = [];
-	let first_plugin = null;
-
-	for (let plugin in plugins) {
-		try {
-			let result = plugin.check(http, user);
-			if (result?.required) {
-				if (!first_plugin)
-					first_plugin = plugin;
-
-				if (result.fields)
-					push(all_fields, ...result.fields);
-
-				if (result.html)
-					push(all_html_parts, result.html);
-
-				if (result.message)
-					push(all_messages, result.message);
-			} else if (result?.html) {
-				push(extra_html_parts, result.html);
-			}
-		}
-		catch (e) {
-			syslog(LOG_WARNING,
-				sprintf("luci: auth plugin '%s' check error: %s", plugin.name, e));
-		}
-	}
-
-	let combined_html = join('', [...all_html_parts, ...extra_html_parts]);
-
-	if (first_plugin) {
-		return {
-			pending: true,
-			plugin: first_plugin,
-			fields: all_fields,
-			message: join(' ', all_messages),
-			html: combined_html
-		};
-	}
-
-	return { pending: false, html: length(combined_html) ? combined_html : null };
-}
-
-function verify_auth_challenge(user) {
-	let plugins = load_auth_plugins();
-
-	for (let plugin in plugins) {
-		try {
-			let check_result = plugin.check(http, user);
-			if (!check_result?.required)
-				continue;
-
-			let verify_result = plugin.verify(http, user);
-			if (!verify_result?.success) {
-				syslog(LOG_WARNING|LOG_AUTHPRIV,
-					sprintf("luci: auth plugin '%s' verification failed for %s from %s",
-						plugin.name, user || "?", http.getenv("REMOTE_ADDR") || "?"));
-				return {
-					success: false,
-					message: verify_result?.message ?? 'Authentication failed',
-					plugin: plugin
-				};
-			}
-
-			syslog(LOG_INFO|LOG_AUTHPRIV,
-				sprintf("luci: auth plugin '%s' verification succeeded for %s from %s",
-					plugin.name, user || "?", http.getenv("REMOTE_ADDR") || "?"));
-		}
-		catch (e) {
-			syslog(LOG_WARNING,
-				sprintf("luci: auth plugin '%s' verify error: %s", plugin.name, e));
-			return {
-				success: false,
-				message: 'Authentication plugin error'
-			};
-		}
-	}
-
-	return { success: true };
-}
-
 function check_authentication(method) {
 	let m = match(method, /^([[:alpha:]]+):(.+)$/);
 	let sid;
@@ -1062,14 +937,7 @@ dispatch = function(_http, path) {
 					pass = http.formvalue('luci_password');
 				}
 
-				let auth_check = get_auth_challenge(user ?? 'root');
-				let auth_fields = null;
-				let auth_message = null;
-
-				if (auth_check.pending) {
-					auth_fields = auth_check.fields;
-					auth_message = auth_check.message;
-				}
+				let auth_check = get_auth_challenge(http, user ?? 'root');
 
 				if (user != null && pass != null)
 					session = session_setup(user, pass, resolved.ctx.request_path);
@@ -1080,12 +948,11 @@ dispatch = function(_http, path) {
 					http.status(403, 'Forbidden');
 					http.header('X-LuCI-Login-Required', 'yes');
 
-					// Show login form with 2FA fields if required
 					let scope = {
 						duser: 'root',
 						fuser: user,
-						auth_fields: auth_fields,
-						auth_message: auth_message,
+						auth_fields: auth_check.pending ? auth_check.fields : null,
+						auth_message: auth_check.pending ? auth_check.message : null,
 						auth_html: auth_check.html
 					};
 					let theme_sysauth = `themes/${basename(runtime.env.media)}/sysauth`;
@@ -1102,21 +969,11 @@ dispatch = function(_http, path) {
 					return runtime.render('sysauth', scope);
 				}
 
-				let auth_user = session.data?.username;
-				if (!auth_user) {
-					auth_user = user;
-				}
-
-				// Re-check auth challenge with actual authenticated user
-				auth_check = get_auth_challenge(auth_user);
 				if (auth_check.pending) {
-					// Plugin requires additional authentication - verify it
-					let auth_verify = verify_auth_challenge(auth_user);
+					let auth_verify = verify_auth_challenge(http, session.data?.username || user);
 
 					if (!auth_verify.success) {
-						// Additional auth failed or not provided
-						// Destroy the temporary session to prevent bypass
-						ubus.call("session", "destroy", { ubus_rpc_session: session.sid });
+						ubus.call('session', 'destroy', { ubus_rpc_session: session.sid });
 
 						resolved.ctx.path = [];
 						http.status(403, 'Forbidden');
@@ -1125,12 +982,10 @@ dispatch = function(_http, path) {
 						let scope = {
 							duser: 'root',
 							fuser: user,
-							auth_plugin: auth_check.plugin?.name,
 							auth_fields: auth_check.fields,
 							auth_message: auth_verify.message ?? auth_check.message,
 							auth_html: auth_check.html
 						};
-
 						let theme_sysauth = `themes/${basename(runtime.env.media)}/sysauth`;
 
 						if (runtime.is_ucode_template(theme_sysauth) || runtime.is_lua_template(theme_sysauth)) {
