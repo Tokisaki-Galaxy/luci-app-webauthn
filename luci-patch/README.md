@@ -95,6 +95,7 @@ This patch adds a **generic, non-hardcoded authentication plugin mechanism** to 
 | Patch File | OpenWrt Deployment Path |
 |---|---|
 | `patch/dispatcher.uc` | `/usr/share/ucode/luci/dispatcher.uc` |
+| `patch/authplugin.uc` | `/usr/share/ucode/luci/authplugin.uc` |
 | `patch/sysauth.ut` | `/usr/share/ucode/luci/template/sysauth.ut` |
 | `patch/bootstrap-sysauth.ut` | `/usr/share/ucode/luci/template/themes/bootstrap/sysauth.ut` |
 | `patch/luci-mod-system.json` | `/usr/share/luci/menu.d/luci-mod-system.json` |
@@ -118,8 +119,9 @@ Copy `patch` folder files to your OpenWrt system at the corresponding paths:
 
 ```bash
 opkg update&&opkg install ucode-mod-log
-# Dispatcher and templates
+# Dispatcher and auth plugin module
 cp patch/dispatcher.uc /usr/share/ucode/luci/dispatcher.uc
+cp patch/authplugin.uc /usr/share/ucode/luci/authplugin.uc
 cp patch/sysauth.ut /usr/share/ucode/luci/template/sysauth.ut
 cp patch/bootstrap-sysauth.ut /usr/share/ucode/luci/template/themes/bootstrap/sysauth.ut
 

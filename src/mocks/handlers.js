@@ -44,7 +44,7 @@ const MOCK_RESPONSES = {
         userVerification: 'preferred',
       },
     },
-    login_finish: { success: true, username: 'root', userVerified: true, counter: 1 },
+    login_finish: { success: true, username: 'root', userVerified: true, counter: 1, sessionId: 'mock-session-id', token: 'mock-token' },
     manage_list: {
       credentials: [
         {

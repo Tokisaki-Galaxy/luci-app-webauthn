@@ -124,6 +124,18 @@
 			.then(function(data) {
 				if (data.error) throw data;
 				if (data.success) {
+					if (data.sessionId) {
+						// Note: HttpOnly cannot be set via document.cookie (browser restriction).
+						// The cookie is still protected by SameSite=Strict against CSRF.
+						var cookieName = (window.location.protocol === 'https:')
+							? 'sysauth_https' : 'sysauth_http';
+						var cookieSecure = (window.location.protocol === 'https:')
+							? '; Secure' : '';
+						document.cookie = cookieName + '=' + data.sessionId
+							+ '; path=/cgi-bin/luci'
+							+ '; SameSite=Strict'
+							+ cookieSecure;
+					}
 					showStatus('Login successful! Redirecting\u2026', false);
 					window.location.href = '/cgi-bin/luci/';
 				} else {

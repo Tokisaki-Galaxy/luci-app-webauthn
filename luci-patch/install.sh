@@ -26,6 +26,7 @@ BASE_URL="https://cdn.jsdelivr.net/gh/${REPO_OWNER}/${REPO_NAME}@${BRANCH}/luci-
 # Patch file list (source_file|target_path pairs)
 PATCH_FILES="
 dispatcher.uc|/usr/share/ucode/luci/dispatcher.uc
+authplugin.uc|/usr/share/ucode/luci/authplugin.uc
 sysauth.ut|/usr/share/ucode/luci/template/sysauth.ut
 bootstrap-sysauth.ut|/usr/share/ucode/luci/template/themes/bootstrap/sysauth.ut
 luci-mod-system.json|/usr/share/luci/menu.d/luci-mod-system.json
