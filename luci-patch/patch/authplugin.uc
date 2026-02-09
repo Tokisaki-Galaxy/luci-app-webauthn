@@ -9,7 +9,7 @@
 
 import { glob } from 'fs';
 import { cursor } from 'uci';
-import { openlog, syslog, closelog, LOG_INFO, LOG_WARNING, LOG_AUTHPRIV } from 'log';
+import { syslog, LOG_INFO, LOG_WARNING, LOG_AUTHPRIV } from 'log';
 
 const AUTH_PLUGINS_DIR = '/usr/share/luci/auth.d';
 
