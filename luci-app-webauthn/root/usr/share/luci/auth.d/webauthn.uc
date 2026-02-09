@@ -20,6 +20,7 @@
 import { popen, access, open, unlink, glob } from 'fs';
 import { connect } from 'ubus';
 import { cursor } from 'uci';
+import { openlog, syslog, LOG_INFO, LOG_WARNING, LOG_AUTHPRIV } from 'log';
 
 const HELPER_BIN = '/usr/libexec/webauthn-helper';
 const VERIFY_TOKEN_MAX_AGE = 120;
@@ -77,9 +78,6 @@ function create_session_for_user(username) {
 		fd.close();
 
 		for (let group_name, perms in acl) {
-			if (group_name == 'unauthenticated')
-				continue;
-
 			let ag_objects = [];
 			if (perms?.read) push(ag_objects, [group_name, 'read']);
 			if (perms?.write) push(ag_objects, [group_name, 'write']);
@@ -209,11 +207,26 @@ return {
 		// after a successful WebAuthn ceremony (login_finish).
 		let verify_token = http.formvalue('webauthn_verify_token');
 		if (verify_token) {
+			let remote_addr = http.getenv('REMOTE_ADDR') || '?';
 			let verified_user = validate_verify_token(verify_token);
 			if (verified_user) {
 				let session = create_session_for_user(verified_user);
-				if (session)
+				if (session) {
+					openlog('webauthn');
+					syslog(LOG_INFO|LOG_AUTHPRIV,
+						sprintf("luci: accepted webauthn login for %s from %s",
+							verified_user, remote_addr));
 					return { required: false, session: session };
+				}
+				openlog('webauthn');
+				syslog(LOG_WARNING|LOG_AUTHPRIV,
+					sprintf("luci: webauthn session creation failed for %s from %s",
+						verified_user, remote_addr));
+			} else {
+				openlog('webauthn');
+				syslog(LOG_WARNING|LOG_AUTHPRIV,
+					sprintf("luci: webauthn token validation failed from %s",
+						remote_addr));
 			}
 			// Token invalid/expired — fall through to show login page
 		}
