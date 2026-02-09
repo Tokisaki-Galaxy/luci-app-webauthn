@@ -123,21 +123,26 @@
 			})
 			.then(function(data) {
 				if (data.error) throw data;
-				if (data.success) {
-					if (data.sessionId) {
-						// Note: HttpOnly cannot be set via document.cookie (browser restriction).
-						// The cookie is still protected by SameSite=Strict against CSRF.
-						var cookieName = (window.location.protocol === 'https:')
-							? 'sysauth_https' : 'sysauth_http';
-						var cookieSecure = (window.location.protocol === 'https:')
-							? '; Secure' : '';
-						document.cookie = cookieName + '=' + data.sessionId
-							+ '; path=/cgi-bin/luci'
-							+ '; SameSite=Strict'
-							+ cookieSecure;
-					}
+				if (data.success && data.verifyToken) {
 					showStatus('Login successful! Redirecting\u2026', false);
-					window.location.href = '/cgi-bin/luci/';
+					// Phase 2: Submit the verify token to the CGI dispatcher.
+					// The auth.d plugin will validate it and create a session.
+					var form = document.querySelector('form[method="post"]');
+					if (form) {
+						var input = document.createElement('input');
+						input.type = 'hidden';
+						input.name = 'webauthn_verify_token';
+						input.value = data.verifyToken;
+						form.appendChild(input);
+						// Ensure username is set for the dispatcher
+						var ufield = form.querySelector('[name="luci_username"]');
+						if (ufield) ufield.value = data.username || ufield.value;
+						form.submit();
+					} else {
+						// Fallback: redirect with token as query param
+						window.location.href = '/cgi-bin/luci/?webauthn_verify_token='
+							+ encodeURIComponent(data.verifyToken);
+					}
 				} else {
 					throw data;
 				}

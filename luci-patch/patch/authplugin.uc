@@ -64,10 +64,13 @@ function get_auth_challenge(http, user) {
 	let all_messages = [];
 	let extra_html_parts = [];
 	let first_plugin = null;
+	let auth_session = null;
 
 	for (let plugin in plugins) {
 		try {
 			let result = plugin.check(http, user);
+			if (result?.session && !auth_session)
+				auth_session = result.session;
 			if (result?.required) {
 				if (!first_plugin)
 					first_plugin = plugin;
@@ -98,11 +101,12 @@ function get_auth_challenge(http, user) {
 			plugin: first_plugin,
 			fields: all_fields,
 			message: join(' ', all_messages),
-			html: combined_html
+			html: combined_html,
+			session: auth_session
 		};
 	}
 
-	return { pending: false, html: length(combined_html) ? combined_html : null };
+	return { pending: false, html: length(combined_html) ? combined_html : null, session: auth_session };
 }
 
 // Verify all required auth plugin challenges after password auth succeeds.
