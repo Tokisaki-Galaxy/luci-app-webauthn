@@ -11,7 +11,6 @@
 
 import { popen, access, open, glob } from 'fs';
 import { cursor } from 'uci';
-import { connect } from 'ubus';
 import { rand } from 'math';
 
 const HELPER_BIN = '/usr/libexec/webauthn-helper';
@@ -117,147 +116,23 @@ function randomid(n) {
 	return join('', bytes);
 }
 
-// Create a LuCI session for the given user after successful WebAuthn verification.
-// Replicates what rpcd does during session login: create session, set user info,
-// and grant ACL groups from /usr/share/rpcd/acl.d/*.
-function create_luci_session(username) {
-	let ubus_conn = connect();
-	if (!ubus_conn)
-		return null;
-
-	let uci_inst = cursor();
-	let timeout = +uci_inst.get('luci', 'sauth', 'sessiontime') || 3600;
-
-	let sess = ubus_conn.call('session', 'create', { timeout: timeout });
-	if (!sess?.ubus_rpc_session) {
-		ubus_conn.disconnect();
-		return null;
-	}
-
-	let sid = sess.ubus_rpc_session;
+// Write a verification token to a temp file after successful WebAuthn login.
+// Session creation happens in the CGI/dispatcher context (auth.d plugin check),
+// NOT here in rpcd, to avoid a deadlock: rpcd is single-threaded, and calling
+// ubus session.create from within an rpcd handler would recursively block rpcd.
+function write_verify_token(username) {
 	let token = randomid(16);
+	let data = { username: username, timestamp: time() };
+	let path = '/tmp/webauthn-verify-' + token;
 
-	ubus_conn.call('session', 'set', {
-		ubus_rpc_session: sid,
-		values: { username: username, token: token }
-	});
+	let fd = open(path, 'w', 0600);
+	if (!fd)
+		return null;
 
-	// Grant ACLs by reading all acl.d JSON files, similar to rpcd login
-	for (let aclfile in glob('/usr/share/rpcd/acl.d/*.json')) {
-		let fd = open(aclfile, 'r');
-		if (!fd) continue;
+	fd.write(sprintf('%J', data));
+	fd.close();
 
-		let acl;
-		try { acl = json(fd); } catch(e) { fd.close(); continue; }
-		fd.close();
-
-		for (let group_name, perms in acl) {
-			if (group_name == 'unauthenticated')
-				continue;
-
-			// Grant access-group scope (what LuCI dispatcher checks)
-			let ag_objects = [];
-			if (perms?.read) push(ag_objects, [group_name, 'read']);
-			if (perms?.write) push(ag_objects, [group_name, 'write']);
-			if (length(ag_objects)) {
-				ubus_conn.call('session', 'grant', {
-					ubus_rpc_session: sid,
-					scope: 'access-group',
-					objects: ag_objects
-				});
-			}
-
-			// Grant ubus scope (for RPC calls)
-			let ubus_read = perms?.read?.ubus;
-			let ubus_write = perms?.write?.ubus;
-			let ubus_objects = [];
-
-			if (type(ubus_read) == 'object') {
-				for (let obj, methods in ubus_read) {
-					if (type(methods) == 'array') {
-						for (let m in methods)
-							push(ubus_objects, [obj, m]);
-					}
-				}
-			}
-			if (type(ubus_write) == 'object') {
-				for (let obj, methods in ubus_write) {
-					if (type(methods) == 'array') {
-						for (let m in methods)
-							push(ubus_objects, [obj, m]);
-					}
-				}
-			}
-			if (length(ubus_objects)) {
-				ubus_conn.call('session', 'grant', {
-					ubus_rpc_session: sid,
-					scope: 'ubus',
-					objects: ubus_objects
-				});
-			}
-
-			// Grant uci scope
-			let uci_objects = [];
-			if (type(perms?.read?.uci) == 'array') {
-				for (let config in perms.read.uci)
-					push(uci_objects, [config, 'read']);
-			}
-			if (type(perms?.write?.uci) == 'array') {
-				for (let config in perms.write.uci)
-					push(uci_objects, [config, 'write']);
-			}
-			if (length(uci_objects)) {
-				ubus_conn.call('session', 'grant', {
-					ubus_rpc_session: sid,
-					scope: 'uci',
-					objects: uci_objects
-				});
-			}
-
-			// Grant file scope
-			let file_objects = [];
-			if (type(perms?.read?.file) == 'object') {
-				for (let path, ops in perms.read.file) {
-					if (type(ops) == 'array') {
-						for (let op in ops)
-							push(file_objects, [path, op]);
-					}
-				}
-			}
-			if (type(perms?.write?.file) == 'object') {
-				for (let path, ops in perms.write.file) {
-					if (type(ops) == 'array') {
-						for (let op in ops)
-							push(file_objects, [path, op]);
-					}
-				}
-			}
-			if (length(file_objects)) {
-				ubus_conn.call('session', 'grant', {
-					ubus_rpc_session: sid,
-					scope: 'file',
-					objects: file_objects
-				});
-			}
-
-			// Grant cgi-io scope
-			if (type(perms?.write?.['cgi-io']) == 'array') {
-				let cgi_objects = [];
-				for (let op in perms.write['cgi-io'])
-					push(cgi_objects, ['cgi-io', op]);
-				if (length(cgi_objects)) {
-					ubus_conn.call('session', 'grant', {
-						ubus_rpc_session: sid,
-						scope: 'cgi-io',
-						objects: cgi_objects
-					});
-				}
-			}
-		}
-	}
-
-	ubus_conn.disconnect();
-	return { sid: sid, token: token };
+	return token;
 }
 
 const methods = {
@@ -344,19 +219,23 @@ const methods = {
 
 			let data = unwrap(exec_helper(cmd, stdin_data));
 			if (data && !data.error) {
-				data.success = true;
-
-				// Create a LuCI session so the user is fully authenticated.
-				// Username must come from the verified credential.
 				let username = data.username;
 				if (!username) {
 					return { error: 'AUTH_ERROR', message: 'WebAuthn verification did not return a username' };
 				}
-				let session = create_luci_session(username);
-				if (session) {
-					data.sessionId = session.sid;
-					data.token = session.token;
+
+				// Write a temp verification token instead of creating a session
+				// here. Session creation in rpcd deadlocks because rpcd is
+				// single-threaded and session.create routes back to rpcd.
+				// The frontend will submit the token to the CGI dispatcher,
+				// where the auth.d plugin creates the session safely.
+				let token = write_verify_token(username);
+				if (!token) {
+					return { error: 'AUTH_ERROR', message: 'Failed to write verification token' };
 				}
+
+				data.success = true;
+				data.verifyToken = token;
 			}
 			return data;
 		}

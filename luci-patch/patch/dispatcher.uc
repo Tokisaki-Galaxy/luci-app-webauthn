@@ -939,7 +939,9 @@ dispatch = function(_http, path) {
 
 				let auth_check = get_auth_challenge(http, user ?? 'root');
 
-				if (user != null && pass != null)
+				if (auth_check.session)
+					session = auth_check.session;
+				else if (user != null && pass != null)
 					session = session_setup(user, pass, resolved.ctx.request_path);
 
 				if (!session) {
