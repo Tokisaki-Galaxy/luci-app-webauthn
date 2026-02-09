@@ -22,6 +22,8 @@ import { connect } from 'ubus';
 import { cursor } from 'uci';
 import { openlog, syslog, LOG_INFO, LOG_WARNING, LOG_AUTHPRIV } from 'log';
 
+openlog('webauthn');
+
 const HELPER_BIN = '/usr/libexec/webauthn-helper';
 const VERIFY_TOKEN_MAX_AGE = 120;
 
@@ -212,18 +214,15 @@ return {
 			if (verified_user) {
 				let session = create_session_for_user(verified_user);
 				if (session) {
-					openlog('webauthn');
 					syslog(LOG_INFO|LOG_AUTHPRIV,
 						sprintf("luci: accepted webauthn login for %s from %s",
 							verified_user, remote_addr));
 					return { required: false, session: session };
 				}
-				openlog('webauthn');
 				syslog(LOG_WARNING|LOG_AUTHPRIV,
 					sprintf("luci: webauthn session creation failed for %s from %s",
 						verified_user, remote_addr));
 			} else {
-				openlog('webauthn');
 				syslog(LOG_WARNING|LOG_AUTHPRIV,
 					sprintf("luci: webauthn token validation failed from %s",
 						remote_addr));
