@@ -125,24 +125,7 @@
 				if (data.error) throw data;
 				if (data.success && data.verifyToken) {
 					showStatus('Login successful! Redirecting\u2026', false);
-					// Phase 2: Submit the verify token to the CGI dispatcher.
-					// The auth.d plugin will validate it and create a session.
-					var form = document.querySelector('form[method="post"]');
-					if (form) {
-						var input = document.createElement('input');
-						input.type = 'hidden';
-						input.name = 'webauthn_verify_token';
-						input.value = data.verifyToken;
-						form.appendChild(input);
-						// Ensure username is set for the dispatcher
-						var ufield = form.querySelector('[name="luci_username"]');
-						if (ufield) ufield.value = data.username || ufield.value;
-						form.submit();
-					} else {
-						// Fallback: redirect with token as query param
-						window.location.href = '/cgi-bin/luci/?webauthn_verify_token='
-							+ encodeURIComponent(data.verifyToken);
-					}
+					submitVerifyToken(data.verifyToken, data.username);
 				} else {
 					throw data;
 				}
@@ -151,6 +134,53 @@
 				showStatus(friendlyError(err), true);
 				if (btn) btn.disabled = false;
 			});
+	}
+
+	function submitVerifyToken(token, username) {
+		// Phase 2: Submit the verify token to the CGI dispatcher.
+		// The auth.d plugin will validate it and create a session.
+		// Use fetch() for reliability: it processes Set-Cookie from 302
+		// responses and gives us full control over error handling.
+		// Falls back to form.submit() if fetch fails.
+		var scriptName = (typeof L !== 'undefined' && L.env && L.env.scriptname)
+			? L.env.scriptname : '/cgi-bin/luci';
+		var submitUrl = scriptName + '/';
+
+		var formBody = 'luci_username=' + encodeURIComponent(username || 'root')
+			+ '&luci_password='
+			+ '&webauthn_verify_token=' + encodeURIComponent(token);
+
+		fetch(submitUrl, {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+			body: formBody,
+			redirect: 'follow',
+			credentials: 'same-origin'
+		}).then(function(resp) {
+			if (resp.ok || resp.redirected) {
+				window.location.replace(resp.url || submitUrl);
+			} else {
+				showStatus('Login failed (server returned ' + resp.status + '). Please try again.', true);
+				var btn = document.getElementById('webauthn-login-btn');
+				if (btn) btn.disabled = false;
+			}
+		}).catch(function() {
+			// Network error: fall back to traditional form submission
+			var form = document.querySelector('form[method="post"]');
+			if (form) {
+				var input = document.createElement('input');
+				input.type = 'hidden';
+				input.name = 'webauthn_verify_token';
+				input.value = token;
+				form.appendChild(input);
+				var ufield = form.querySelector('[name="luci_username"]');
+				if (ufield) ufield.value = username || ufield.value;
+				form.submit();
+			} else {
+				window.location.href = submitUrl
+					+ '?webauthn_verify_token=' + encodeURIComponent(token);
+			}
+		});
 	}
 
 	function init() {
