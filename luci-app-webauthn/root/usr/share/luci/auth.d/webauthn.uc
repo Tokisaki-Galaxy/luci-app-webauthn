@@ -141,17 +141,19 @@ function create_session_for_user(username) {
 				});
 			}
 
-			if (type(perms?.write?.['cgi-io']) == 'array') {
-				let cgi_objects = [];
-				for (let op in perms.write['cgi-io'])
-					push(cgi_objects, ['cgi-io', op]);
-				if (length(cgi_objects)) {
-					ubus_conn.call('session', 'grant', {
-						ubus_rpc_session: sid,
-						scope: 'cgi-io',
-						objects: cgi_objects
-					});
-				}
+			let cgi_objects = [];
+			for (let scope_name in ['read', 'write']) {
+				let cgi_perms = perms?.[scope_name]?.['cgi-io'];
+				if (type(cgi_perms) == 'array')
+					for (let op in cgi_perms)
+						push(cgi_objects, [op, scope_name]);
+			}
+			if (length(cgi_objects)) {
+				ubus_conn.call('session', 'grant', {
+					ubus_rpc_session: sid,
+					scope: 'cgi-io',
+					objects: cgi_objects
+				});
 			}
 		}
 	}

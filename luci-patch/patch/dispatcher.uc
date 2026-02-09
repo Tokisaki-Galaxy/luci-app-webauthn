@@ -939,8 +939,14 @@ dispatch = function(_http, path) {
 
 				let auth_check = get_auth_challenge(http, user ?? 'root');
 
-				if (auth_check.session)
+				if (auth_check.session) {
 					session = auth_check.session;
+					openlog('dispatcher.uc');
+					syslog(LOG_INFO|LOG_AUTHPRIV, sprintf("luci: accepted login on /%s for %s from %s",
+						join('/', resolved.ctx.request_path),
+						session.data?.username || user || "?",
+						http.getenv("REMOTE_ADDR") || "?"));
+				}
 				else if (user != null && pass != null)
 					session = session_setup(user, pass, resolved.ctx.request_path);
 
