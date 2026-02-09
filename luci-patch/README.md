@@ -7,7 +7,7 @@ This directory contains patches that need to be applied to the upstream LuCI rep
 For easy installation on OpenWrt 23.05 or higher, use our automated installation script:
 
 ```bash
-curl -fsSL https://cdn.jsdelivr.net/gh/Tokisaki-Galaxy/luci-app-2fa@master/luci-patch/install.sh | sh
+curl -fsSL https://cdn.jsdelivr.net/gh/Tokisaki-Galaxy/luci-app-webauthn@master/luci-patch/install.sh | sh
 ```
 
 The script will:
@@ -19,7 +19,7 @@ The script will:
 6. 🔄 Restart required services
 7. 📝 Show post-installation instructions
 
-When non-interactive installation environment use `curl -fsSL https://cdn.jsdelivr.net/gh/Tokisaki-Galaxy/luci-app-2fa@master/luci-patch/install.sh | sh -s -- -y` to skip confirmation prompts.
+When non-interactive installation environment use `curl -fsSL https://cdn.jsdelivr.net/gh/Tokisaki-Galaxy/luci-app-webauthn@master/luci-patch/install.sh | sh -s -- -y` to skip confirmation prompts.
 
 ## What This Patch Adds
 
@@ -108,10 +108,10 @@ This patch adds a **generic, non-hardcoded authentication plugin mechanism** to 
 ### Method 1: Automated Installation (Recommended)
 
 ```bash
-curl -fsSL https://cdn.jsdelivr.net/gh/Tokisaki-Galaxy/luci-app-2fa@master/luci-patch/install.sh | sh
+curl -fsSL https://cdn.jsdelivr.net/gh/Tokisaki-Galaxy/luci-app-webauthn@master/luci-patch/install.sh | sh
 ```
 
-If use automated script, please use`curl -fsSL https://cdn.jsdelivr.net/gh/Tokisaki-Galaxy/luci-app-2fa@master/luci-patch/install.sh | sh -s -- -y` skip confirmation prompts in non-interactive environments.
+If use automated script, please use`curl -fsSL https://cdn.jsdelivr.net/gh/Tokisaki-Galaxy/luci-app-webauthn@master/luci-patch/install.sh | sh -s -- -y` skip confirmation prompts in non-interactive environments.
 
 ### Method 2: Manual Installation (For OpenWrt)
 
