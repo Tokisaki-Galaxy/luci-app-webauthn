@@ -27,6 +27,17 @@ openlog('webauthn');
 const HELPER_BIN = '/usr/libexec/webauthn-helper';
 const VERIFY_TOKEN_MAX_AGE = 120;
 
+// Diagnostic logger: writes to syslog AND a debug file for troubleshooting.
+// Syslog may be unavailable in some uhttpd contexts (logd not running, etc.).
+function log_debug(msg) {
+	syslog(LOG_INFO, msg);
+	let fd = open('/tmp/webauthn-auth.log', 'a', 0600);
+	if (fd) {
+		fd.write(sprintf('[%d] %s\n', time(), msg));
+		fd.close();
+	}
+}
+
 function helper_available() {
 	return access(HELPER_BIN);
 }
@@ -50,14 +61,17 @@ function randomid(n) {
 // Safe to call from the CGI/dispatcher context (uhttpd process), NOT from rpcd.
 function create_session_for_user(username) {
 	let ubus_conn = connect();
-	if (!ubus_conn)
+	if (!ubus_conn) {
+		log_debug('webauthn: create_session_for_user: ubus connect() failed');
 		return null;
+	}
 
 	let uci_inst = cursor();
 	let timeout = +uci_inst.get('luci', 'sauth', 'sessiontime') || 3600;
 
 	let sess = ubus_conn.call('session', 'create', { timeout: timeout });
 	if (!sess?.ubus_rpc_session) {
+		log_debug('webauthn: create_session_for_user: session.create failed');
 		ubus_conn.disconnect();
 		return null;
 	}
@@ -65,6 +79,8 @@ function create_session_for_user(username) {
 	let sid = sess.ubus_rpc_session;
 	let token = randomid(16);
 
+	// session.set returns null/empty on success (no response body).
+	// Do NOT check the return value — verify via session.get later.
 	ubus_conn.call('session', 'set', {
 		ubus_rpc_session: sid,
 		values: { username: username, token: token }
@@ -163,9 +179,18 @@ function create_session_for_user(username) {
 	let sacl = ubus_conn.call('session', 'access', { ubus_rpc_session: sid });
 	ubus_conn.disconnect();
 
+	// Verify the token was actually stored (session.set has no return value,
+	// so we confirm by reading back). The dispatcher's session_retrieve()
+	// requires sdat.values.token to be a string.
+	if (type(sdat?.values?.token) != 'string') {
+		log_debug(sprintf('webauthn: session values missing after set, sid=%s got=%J',
+			sid, sdat?.values));
+		return null;
+	}
+
 	return {
 		sid: sid,
-		data: sdat?.values ?? { username, token },
+		data: sdat.values,
 		acls: length(sacl) ? sacl : {}
 	};
 }
@@ -212,19 +237,28 @@ return {
 		let verify_token = http.formvalue('webauthn_verify_token');
 		if (verify_token) {
 			let remote_addr = http.getenv('REMOTE_ADDR') || '?';
+			log_debug(sprintf('webauthn check: received verify_token from %s (len=%d)',
+				remote_addr, length(verify_token)));
+
 			let verified_user = validate_verify_token(verify_token);
 			if (verified_user) {
 				let session = create_session_for_user(verified_user);
 				if (session) {
+					log_debug(sprintf('luci: accepted webauthn login for %s from %s sid=%s',
+						verified_user, remote_addr, session.sid));
 					syslog(LOG_INFO|LOG_AUTHPRIV,
 						sprintf("luci: accepted webauthn login for %s from %s",
 							verified_user, remote_addr));
 					return { required: false, session: session };
 				}
+				log_debug(sprintf('luci: webauthn session creation failed for %s from %s',
+					verified_user, remote_addr));
 				syslog(LOG_WARNING|LOG_AUTHPRIV,
 					sprintf("luci: webauthn session creation failed for %s from %s",
 						verified_user, remote_addr));
 			} else {
+				log_debug(sprintf('luci: webauthn token validation failed from %s',
+					remote_addr));
 				syslog(LOG_WARNING|LOG_AUTHPRIV,
 					sprintf("luci: webauthn token validation failed from %s",
 						remote_addr));
