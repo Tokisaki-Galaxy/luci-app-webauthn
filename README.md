@@ -35,17 +35,15 @@ webauthn-helper (Rust backend)
 
 1. **Frontend (Browser JS)**:
    - `/www/luci-static/resources/view/system/webauthn.js` - Passkey management interface
-   - `/www/luci-static/resources/view/system/webauthn-login.js` - Login page enhancement
+   - `/www/luci-static/resources/view/plugins/25e715cf23e44e35bc6763e804d85b85.js` - Plugin configuration interface
+   - `/www/luci-static/plugins/25e715cf23e44e35bc6763e804d85b85/challenge.js` - Login challenge script
 
 2. **Middleware (ucode)**:
    - `/usr/share/rpcd/ucode/webauthn.uc` - RPC backend that bridges browser and CLI
-   - `/usr/share/luci/auth.d/webauthn.uc` - Authentication plugin that adds passkey login option
+   - `/usr/share/ucode/luci/plugins/auth/login/25e715cf23e44e35bc6763e804d85b85.uc` - Authentication plugin
 
 3. **Backend (Rust CLI)**:
    - Uses [webauthn-helper](https://github.com/Tokisaki-Galaxy/webauthn-helper/) for WebAuthn protocol handling and credential management
-
-4. **Dispatcher Patch**:
-   - `luci-patch/` - Patches to LuCI core that enable the authentication plugin mechanism
 
 ### Backend Dependency
 
@@ -59,29 +57,14 @@ The webauthn-helper handles:
 
 ### Prerequisites
 
-1. **LuCI Dispatcher Patch**: The authentication plugin mechanism must be installed first
+1. **LuCI plugin auth architecture**: Requires LuCI plugin UI + auth login plugin mechanism
 2. **HTTPS Configuration**: WebAuthn requires a secure context (HTTPS or localhost)
 3. **Modern Browser**: Browser with WebAuthn API support (Chrome 67+, Firefox 60+, Safari 13+, Edge 18+)
 4. **webauthn-helper**: The backend CLI tool must be installed
 
 ### Installation
 
-#### 1. Install LuCI Dispatcher Patch
-
-The authentication plugin mechanism is required for this application to work. Install it using the automated script:
-
-```bash
-curl -fsSL https://cdn.jsdelivr.net/gh/Tokisaki-Galaxy/luci-app-webauthn@master/luci-patch/install.sh | sh
-```
-
-For non-interactive environments:
-```bash
-curl -fsSL https://cdn.jsdelivr.net/gh/Tokisaki-Galaxy/luci-app-webauthn@master/luci-patch/install.sh | sh -s -- -y
-```
-
-See [luci-patch/README.md](luci-patch/README.md) for detailed information about the patch.
-
-#### 2. Install webauthn-helper
+#### 1. Install webauthn-helper
 
 Download and install the webauthn-helper binary for your architecture from the [releases page](https://github.com/Tokisaki-Galaxy/webauthn-helper/releases):
 
@@ -92,7 +75,7 @@ chmod +x webauthn-helper-x86_64
 mv webauthn-helper-x86_64 /usr/bin/webauthn-helper
 ```
 
-#### 3. Install luci-app-webauthn
+#### 2. Install luci-app-webauthn
 
 **Option A: From IPK Package (Recommended)**
 
@@ -120,7 +103,7 @@ rm -f /tmp/luci-indexcache*
 /etc/init.d/rpcd restart
 ```
 
-#### 4. Configure HTTPS (if not already configured)
+#### 3. Configure HTTPS (if not already configured)
 
 WebAuthn requires HTTPS. If accessing your router via HTTP:
 
@@ -168,29 +151,17 @@ In the Passkeys management page (**System** → **Administration** → **Passkey
 
 ```
 luci-app-webauthn/
-├── Makefile                          # OpenWrt package definition
-├── htdocs/                           # Web resources
+├── Makefile
+├── htdocs/
 │   └── luci-static/resources/view/system/
-│       ├── webauthn.js              # Passkey management UI
-│       └── webauthn-login.js        # Login page integration
-└── root/                            # System files (deployed to /)
-    └── usr/share/
-        ├── luci/
-        │   ├── auth.d/
-        │   │   └── webauthn.uc      # Auth plugin (adds passkey login)
-        │   └── menu.d/
-        │       └── luci-app-webauthn.json  # Menu configuration
-        └── rpcd/
-            ├── acl.d/
-            │   └── luci-app-webauthn.json  # Access control list
-            └── ucode/
-                └── webauthn.uc      # RPC backend (middleware)
-
-luci-patch/                          # LuCI dispatcher patches (required)
-├── README.md                        # Patch documentation
-├── install.sh                       # Automated installation script
-├── origin/                          # Original LuCI files
-└── patch/                           # Patched files
+│       └── webauthn.js
+└── root/
+    ├── etc/uci-defaults/luci-app-webauthn
+    ├── usr/share/rpcd/...
+    ├── usr/share/ucode/luci/plugins/auth/login/25e715cf23e44e35bc6763e804d85b85.uc
+    └── www/luci-static/
+        ├── resources/view/plugins/25e715cf23e44e35bc6763e804d85b85.js
+        └── plugins/25e715cf23e44e35bc6763e804d85b85/challenge.js
 ```
 
 ### Security Considerations
@@ -311,17 +282,15 @@ webauthn-helper (Rust 后端)
 
 1. **前端（浏览器 JS）**：
    - `/www/luci-static/resources/view/system/webauthn.js` - 通行密钥管理界面
-   - `/www/luci-static/resources/view/system/webauthn-login.js` - 登录页面增强
+   - `/www/luci-static/resources/view/plugins/25e715cf23e44e35bc6763e804d85b85.js` - 插件配置界面
+   - `/www/luci-static/plugins/25e715cf23e44e35bc6763e804d85b85/challenge.js` - 登录挑战脚本
 
 2. **中间件（ucode）**：
    - `/usr/share/rpcd/ucode/webauthn.uc` - 连接浏览器和 CLI 的 RPC 后端
-   - `/usr/share/luci/auth.d/webauthn.uc` - 添加通行密钥登录选项的认证插件
+   - `/usr/share/ucode/luci/plugins/auth/login/25e715cf23e44e35bc6763e804d85b85.uc` - 认证插件
 
 3. **后端（Rust CLI）**：
    - 使用 [webauthn-helper](https://github.com/Tokisaki-Galaxy/webauthn-helper/) 处理 WebAuthn 协议和凭据管理
-
-4. **调度器补丁**：
-   - `luci-patch/` - 启用认证插件机制的 LuCI 核心补丁
 
 ### 后端依赖
 
@@ -335,29 +304,14 @@ webauthn-helper 负责处理：
 
 ### 前置要求
 
-1. **LuCI 调度器补丁**：必须先安装认证插件机制
+1. **LuCI 插件认证架构**：需要支持 `luci_plugins` 与 auth login 插件机制
 2. **HTTPS 配置**：WebAuthn 需要安全上下文（HTTPS 或 localhost）
 3. **现代浏览器**：支持 WebAuthn API 的浏览器（Chrome 67+、Firefox 60+、Safari 13+、Edge 18+）
 4. **webauthn-helper**：必须安装后端 CLI 工具
 
 ### 安装
 
-#### 1. 安装 LuCI 调度器补丁
-
-此应用需要认证插件机制才能工作。使用自动化脚本安装：
-
-```bash
-curl -fsSL https://cdn.jsdelivr.net/gh/Tokisaki-Galaxy/luci-app-webauthn@master/luci-patch/install.sh | sh
-```
-
-在非交互式环境中使用：
-```bash
-curl -fsSL https://cdn.jsdelivr.net/gh/Tokisaki-Galaxy/luci-app-webauthn@master/luci-patch/install.sh | sh -s -- -y
-```
-
-详细补丁信息请参见 [luci-patch/README.md](luci-patch/README.md)。
-
-#### 2. 安装 webauthn-helper
+#### 1. 安装 webauthn-helper
 
 从[发布页面](https://github.com/Tokisaki-Galaxy/webauthn-helper/releases)下载并安装适合您架构的 webauthn-helper 二进制文件：
 
@@ -368,7 +322,7 @@ chmod +x webauthn-helper-x86_64
 mv webauthn-helper-x86_64 /usr/bin/webauthn-helper
 ```
 
-#### 3. 安装 luci-app-webauthn
+#### 2. 安装 luci-app-webauthn
 
 **方式 A：从 IPK 包安装（推荐）**
 
@@ -396,7 +350,7 @@ rm -f /tmp/luci-indexcache*
 /etc/init.d/rpcd restart
 ```
 
-#### 4. 配置 HTTPS（如果尚未配置）
+#### 3. 配置 HTTPS（如果尚未配置）
 
 WebAuthn 需要 HTTPS。如果通过 HTTP 访问路由器：
 
@@ -444,29 +398,17 @@ WebAuthn 需要 HTTPS。如果通过 HTTP 访问路由器：
 
 ```
 luci-app-webauthn/
-├── Makefile                          # OpenWrt 包定义
-├── htdocs/                           # Web 资源
+├── Makefile
+├── htdocs/
 │   └── luci-static/resources/view/system/
-│       ├── webauthn.js              # 通行密钥管理 UI
-│       └── webauthn-login.js        # 登录页面集成
-└── root/                            # 系统文件（部署到 /）
-    └── usr/share/
-        ├── luci/
-        │   ├── auth.d/
-        │   │   └── webauthn.uc      # 认证插件（添加通行密钥登录）
-        │   └── menu.d/
-        │       └── luci-app-webauthn.json  # 菜单配置
-        └── rpcd/
-            ├── acl.d/
-            │   └── luci-app-webauthn.json  # 访问控制列表
-            └── ucode/
-                └── webauthn.uc      # RPC 后端（中间件）
-
-luci-patch/                          # LuCI 调度器补丁（必需）
-├── README.md                        # 补丁文档
-├── install.sh                       # 自动安装脚本
-├── origin/                          # 原始 LuCI 文件
-└── patch/                           # 补丁文件
+│       └── webauthn.js
+└── root/
+    ├── etc/uci-defaults/luci-app-webauthn
+    ├── usr/share/rpcd/...
+    ├── usr/share/ucode/luci/plugins/auth/login/25e715cf23e44e35bc6763e804d85b85.uc
+    └── www/luci-static/
+        ├── resources/view/plugins/25e715cf23e44e35bc6763e804d85b85.js
+        └── plugins/25e715cf23e44e35bc6763e804d85b85/challenge.js
 ```
 
 ### 安全注意事项

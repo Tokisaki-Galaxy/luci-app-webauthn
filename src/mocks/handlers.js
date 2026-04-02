@@ -32,8 +32,9 @@ const MOCK_RESPONSES = {
       aaguid: '00000000-0000-0000-0000-000000000000',
       createdAt: '2025-01-15T10:30:00Z',
     },
-    login_begin: {
+    auth_challenge: {
       challengeId: 'mock-challenge-id-login',
+      origin: 'https://localhost',
       publicKey: {
         challenge: 'dGVzdC1jaGFsbGVuZ2UtbG9naW4',
         timeout: 60000,
@@ -44,7 +45,6 @@ const MOCK_RESPONSES = {
         userVerification: 'preferred',
       },
     },
-    login_finish: { success: true, username: 'root', userVerified: true, counter: 1, sessionId: 'mock-session-id', token: 'mock-token' },
     manage_list: {
       credentials: [
         {

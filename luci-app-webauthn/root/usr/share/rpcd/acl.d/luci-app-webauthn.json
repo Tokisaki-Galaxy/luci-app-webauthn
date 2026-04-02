@@ -6,8 +6,7 @@
 				"luci.webauthn": [
 					"register_begin",
 					"register_finish",
-					"login_begin",
-					"login_finish",
+					"auth_challenge",
 					"manage_list",
 					"manage_delete",
 					"manage_update",
@@ -28,12 +27,11 @@
 	},
 
 	"unauthenticated": {
-		"description": "Allow unauthenticated WebAuthn login and health check",
+		"description": "Allow unauthenticated WebAuthn challenge fetch and health check",
 		"read": {
 			"ubus": {
 				"luci.webauthn": [
-					"login_begin",
-					"login_finish",
+					"auth_challenge",
 					"health"
 				]
 			}

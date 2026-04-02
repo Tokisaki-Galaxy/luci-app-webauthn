@@ -9,15 +9,18 @@
 
 'use strict';
 
-import { popen, access, open, glob } from 'fs';
+import { popen, access, open } from 'fs';
 import { cursor } from 'uci';
-import { rand } from 'math';
 
 const HELPER_BIN = '/usr/libexec/webauthn-helper';
 
-function get_origin() {
+const PLUGIN_UUID = '25e715cf23e44e35bc6763e804d85b85';
+const CHALLENGE_PATH_PREFIX = '/tmp/webauthn-auth-';
+const CHALLENGE_MAX_AGE = 120;
+
+function plugin_origin() {
 	const uci = cursor();
-	let origin = uci.get('webauthn', 'settings', 'origin');
+	let origin = uci.get('luci_plugins', PLUGIN_UUID, 'origin');
 
 	if (!origin) {
 		let fd = popen('uci get system.@system[0].hostname 2>/dev/null');
@@ -97,42 +100,26 @@ function unwrap(result) {
 	return result;
 }
 
-function randomid(n) {
-	let fd = open('/dev/urandom', 'r');
-	if (fd) {
-		let raw = fd.read(n);
-		fd.close();
-		if (raw) {
-			let bytes = [];
-			for (let i = 0; i < n; i++)
-				push(bytes, sprintf('%02x', ord(raw, i)));
-			return join('', bytes);
-		}
-	}
-	// Fallback to math.rand (matches dispatcher.uc randomid)
-	let bytes = [];
-	while (n-- > 0)
-		push(bytes, sprintf('%02x', rand() % 256));
-	return join('', bytes);
-}
+function read_challenge_state(token) {
+	if (!match(token, /^[0-9a-f]{32}$/))
+		return null;
 
-// Write a verification token to a temp file after successful WebAuthn login.
-// Session creation happens in the CGI/dispatcher context (auth.d plugin check),
-// NOT here in rpcd, to avoid a deadlock: rpcd is single-threaded, and calling
-// ubus session.create from within an rpcd handler would recursively block rpcd.
-function write_verify_token(username) {
-	let token = randomid(16);
-	let data = { username: username, timestamp: time() };
-	let path = '/tmp/webauthn-verify-' + token;
-
-	let fd = open(path, 'w', 0600);
+	let path = CHALLENGE_PATH_PREFIX + token;
+	let fd = open(path, 'r');
 	if (!fd)
 		return null;
 
-	fd.write(sprintf('%J', data));
+	let data = null;
+	try { data = json(fd); } catch (e) {}
 	fd.close();
 
-	return token;
+	if (!data?.username || !data?.publicKey || !data?.challengeId || !data?.timestamp || !data?.origin)
+		return null;
+
+	if (time() - data.timestamp > CHALLENGE_MAX_AGE)
+		return null;
+
+	return data;
 }
 
 const methods = {
@@ -146,7 +133,7 @@ const methods = {
 	register_begin: {
 		args: { username: 'username', userVerification: 'userVerification', origin: 'origin' },
 		call: function(request) {
-			let origin = request.args.origin || get_origin();
+			let origin = request.args.origin || plugin_origin();
 			let rp_id = get_rp_id(origin);
 			let username = request.args.username || 'root';
 			let uv = request.args.userVerification || 'preferred';
@@ -168,7 +155,7 @@ const methods = {
 			origin: 'origin'
 		},
 		call: function(request) {
-			let origin = request.args.origin || get_origin();
+			let origin = request.args.origin || plugin_origin();
 			let a = request.args;
 
 			let cmd = sprintf('%s register-finish --challenge-id %s --origin %s --device-name %s',
@@ -184,60 +171,18 @@ const methods = {
 		}
 	},
 
-	login_begin: {
-		args: { username: 'username', origin: 'origin' },
+	auth_challenge: {
+		args: { token: 'token' },
 		call: function(request) {
-			let origin = request.args.origin || get_origin();
-			let rp_id = get_rp_id(origin);
-			let username = request.args.username || 'root';
+			let state = read_challenge_state(request.args.token);
+			if (!state)
+				return { error: 'CHALLENGE_INVALID', message: 'Challenge not found or expired' };
 
-			let cmd = sprintf('%s login-begin --username %s --rp-id %s',
-				HELPER_BIN, esc(username), esc(rp_id));
-
-			return unwrap(exec_helper(cmd));
-		}
-	},
-
-	login_finish: {
-		args: {
-			challengeId: 'challengeId',
-			id: 'id',
-			type: 'type',
-			response: {},
-			origin: 'origin'
-		},
-		call: function(request) {
-			let origin = request.args.origin || get_origin();
-			let a = request.args;
-
-			let cmd = sprintf('%s login-finish --challenge-id %s --origin %s',
-				HELPER_BIN, esc(a.challengeId), esc(origin));
-
-			let stdin_data = sprintf('%J', {
-				id: a.id, rawId: a.id, type: a.type, response: a.response
-			});
-
-			let data = unwrap(exec_helper(cmd, stdin_data));
-			if (data && !data.error) {
-				let username = data.username;
-				if (!username) {
-					return { error: 'AUTH_ERROR', message: 'WebAuthn verification did not return a username' };
-				}
-
-				// Write a temp verification token instead of creating a session
-				// here. Session creation in rpcd deadlocks because rpcd is
-				// single-threaded and session.create routes back to rpcd.
-				// The frontend will submit the token to the CGI dispatcher,
-				// where the auth.d plugin creates the session safely.
-				let token = write_verify_token(username);
-				if (!token) {
-					return { error: 'AUTH_ERROR', message: 'Failed to write verification token' };
-				}
-
-				data.success = true;
-				data.verifyToken = token;
-			}
-			return data;
+			return {
+				challengeId: state.challengeId,
+				publicKey: state.publicKey,
+				origin: state.origin
+			};
 		}
 	},
 
