@@ -22,6 +22,13 @@ return baseclass.extend({
 		o.default = o.disabled;
 		o.rmempty = false;
 
+		o = s.option(form.Value, 'priority', _('Priority'),
+			_('Execution order for this plugin. Lower values run earlier.'));
+		o.depends('enabled', '1');
+		o.datatype = 'integer';
+		o.placeholder = '20';
+		o.rmempty = true;
+
 		o = s.option(form.Value, 'origin', _('Origin (optional override)'),
 			_('Optional origin override for WebAuthn verification, e.g. https://router.example.com'));
 		o.depends('enabled', '1');

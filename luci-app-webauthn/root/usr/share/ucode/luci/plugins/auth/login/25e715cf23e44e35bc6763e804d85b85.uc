@@ -13,6 +13,7 @@ const PLUGIN_UUID = '25e715cf23e44e35bc6763e804d85b85';
 const HELPER_BIN = '/usr/libexec/webauthn-helper';
 const CHALLENGE_MAX_AGE = 120;
 const CHALLENGE_PATH_PREFIX = '/tmp/webauthn-auth-';
+const DEFAULT_PRIORITY = 20;
 
 function esc(s) {
 	return "'" + replace(s ?? '', "'", "'\\''") + "'";
@@ -25,6 +26,16 @@ function helper_available() {
 function plugin_enabled() {
 	let uci = cursor();
 	return uci.get('luci_plugins', PLUGIN_UUID, 'enabled') == '1';
+}
+
+function get_priority() {
+	let uci = cursor();
+	let value = uci.get('luci_plugins', PLUGIN_UUID, 'priority');
+
+	if (!value || !match(value, /^-?[0-9]+$/))
+		return DEFAULT_PRIORITY;
+
+	return int(value);
 }
 
 function get_origin(http) {
@@ -159,7 +170,7 @@ function has_registered_credentials(username) {
 }
 
 return {
-	priority: 20,
+	priority: get_priority(),
 
 	check: function(http, user) {
 		if (!plugin_enabled() || !helper_available())

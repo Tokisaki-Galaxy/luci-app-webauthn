@@ -127,6 +127,8 @@ For testing purposes, you can also access via `http://localhost/` if you have SS
 5. Give your passkey a memorable name
 6. The new passkey will appear in the management table
 
+In **System → Plugins**, you can set `priority` for WebAuthn auth plugin. Lower values run earlier.
+
 #### Logging in with a Passkey
 
 1. Go to the LuCI login page
@@ -373,6 +375,8 @@ WebAuthn 需要 HTTPS。如果通过 HTTP 访问路由器：
    - 设备 PIN 或密码
 5. 为您的通行密钥指定一个便于记忆的名称
 6. 新通行密钥将出现在管理表格中
+
+在 **系统 → 插件** 中可设置 WebAuthn 认证插件 `priority`，数值越小越先执行。
 
 #### 使用通行密钥登录
 
